@@ -11,6 +11,30 @@
 
 <body>
     <div class="container">
+        <?php
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        
+        include '../connection.php';
+
+        $collegesQuery = "SELECT DISTINCT college FROM courses";
+        $departmentsQuery = "SELECT DISTINCT department FROM courses";
+        $sectionsQuery = "SELECT DISTINCT section FROM courses";
+
+        $collegesStmt = $con->prepare($collegesQuery);
+        $departmentsStmt = $con->prepare($departmentsQuery);
+        $sectionsStmt = $con->prepare($sectionsQuery);
+
+        $collegesStmt->execute();
+        $departmentsStmt->execute();
+        $sectionsStmt->execute();
+
+        $existingColleges = $collegesStmt->fetchAll(PDO::FETCH_COLUMN);
+        $existingDepartments = $departmentsStmt->fetchAll(PDO::FETCH_COLUMN);
+        $existingSections = $sectionsStmt->fetchAll(PDO::FETCH_COLUMN);
+        ?>
+
         <?php if (isset($_SESSION['success_message'])): ?>
             <div class="alert alert-success" role="alert">
                 <?php echo $_SESSION['success_message']; ?>
@@ -39,6 +63,7 @@
                                     <label for="Student_Number" class="col-form-label">Student Number:</label>
                                     <input type="text" class="form-control" id="Student_Number" name="Student_Number" required autocomplete="off">
                                 </div>
+                                <input type="hidden" name="Alumni_ID_Number" value="<?php echo htmlspecialchars($alumniID); ?>">
                                 <div class="mb-3">
                                     <label for="Last_Name" class="col-form-label">Last Name:</label>
                                     <input type="text" class="form-control" id="Last_Name" name="Last_Name" required autocomplete="off">
@@ -55,8 +80,9 @@
                                     <label for="College" class="col-form-label">College:</label>
                                     <select class="form-select" id="College" name="College" required onchange="updateDepartments()">
                                         <option value="">Select College</option>
-                                        <option value="CITCS">CITCS</option>
-                                        <option value="CAS">CAS</option>
+                                        <?php foreach ($existingColleges as $college): ?>
+                                            <option value="<?= htmlspecialchars($college) ?>"><?= htmlspecialchars($college) ?></option>
+                                        <?php endforeach; ?>
                                     </select>
                                 </div>
                                 <div class="mb-3" id="DepartmentContainer" style="display: none;">
@@ -139,8 +165,79 @@
         </div>
     </div>
     <script src="../assets/js/script.js"></script>
-    <script src="../assets/js/addscript.js"></script>
     <script src="../assets/js/bootstrap.bundle.js"></script>
+    <script>
+        function updateDepartments() {
+            const college = document.getElementById('College').value;
+            const departmentSelect = document.getElementById('Department');
+            const sectionSelect = document.getElementById('Section');
+
+            departmentSelect.innerHTML = '<option value="">Select Department</option>';
+            sectionSelect.innerHTML = '<option value="">Select Section</option>';
+
+            if (college) {
+                fetch(`get_departments.php?college=${college}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        data.forEach(department => {
+                            const option = document.createElement('option');
+                            option.value = department;
+                            option.textContent = department;
+                            departmentSelect.appendChild(option);
+                        });
+                        document.getElementById('DepartmentContainer').style.display = 'block';
+                    });
+            } else {
+                document.getElementById('DepartmentContainer').style.display = 'none';
+            }
+        }
+
+        function updateSections() {
+            const department = document.getElementById('Department').value;
+            const sectionSelect = document.getElementById('Section');
+
+            sectionSelect.innerHTML = '<option value="">Select Section</option>';
+
+            if (department) {
+                fetch(`get_sections.php?department=${department}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        data.forEach(section => {
+                            const option = document.createElement('option');
+                            option.value = section;
+                            option.textContent = section;
+                            sectionSelect.appendChild(option);
+                        });
+                        document.getElementById('SectionContainer').style.display = 'block';
+                    });
+            } else {
+                document.getElementById('SectionContainer').style.display = 'none';
+            }
+        }
+
+        function toggleEmploymentFields() {
+            const employmentStatus = document.getElementById('Employment').value;
+
+            const fieldsToHide = [
+                'EmploymentStatusContainer',
+                'PresentOccupationContainer',
+                'EmployerNameContainer',
+                'EmployerAddressContainer',
+                'YearsInEmployerContainer',
+                'TypeOfEmployerContainer',
+                'MajorLineOfBusinessContainer'
+            ];
+            fieldsToHide.forEach(field => {
+                document.getElementById(field).style.display = 'none';
+            });
+
+            if (employmentStatus === 'Employed') {
+                fieldsToHide.forEach(field => {
+                    document.getElementById(field).style.display = 'block';
+                });
+            }
+        }
+    </script>
 </body>
 
 </html>
