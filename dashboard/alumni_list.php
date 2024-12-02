@@ -4,58 +4,29 @@ if (!file_exists($connectionFile)) {
     die("Connection file not found.");
 }
 include($connectionFile);
+if (!$con) {
+    die("Database connection failed: " . $con->errorInfo()[2]);
+}
 try {
-    if (!$con) {
-        throw new Exception("Database connection failed.");
-    }
-    //LEFT JOIN
-    $statement = $con->prepare("
+    $statement = $con->query("
         SELECT 
-            a.ID,
-            a.Alumni_ID_Number,
-            a.Student_Number, 
-            a.Last_Name, 
-            a.First_Name, 
-            a.Middle_Name, 
-            a.College, 
-            a.Department, 
-            a.Section, 
-            a.Year_Graduated, 
-            a.Contact_Number, 
-            a.Personal_Email, 
-            ed.Employment,
-            ed.Employment_Status, 
-            ed.Present_Occupation, 
-            ed.Name_of_Employer, 
-            ed.Address_of_Employer, 
-            ed.Number_of_Years_in_Present_Employer, 
-            ed.Type_of_Employer, 
-            ed.Major_Line_of_Business,
-            CONCAT('AL', LPAD(a.Alumni_ID_Number, 5, '0')) AS Alumni_ID_Number_Format
-        FROM `2024-2025` a 
-        LEFT JOIN `2024-2025_ed` ed ON a.Alumni_ID_Number = ed.Alumni_ID_Number 
-        WHERE ed.Alumni_ID_Number IS NULL OR ed.ID = (
-            SELECT MAX(ID) 
-            FROM `2024-2025_ed` 
-            WHERE Alumni_ID_Number = a.Alumni_ID_Number
-        )
+        a.*, 
+        e.Employment, 
+        e.Employment_Status, 
+        e.Present_Occupation, 
+        e.Name_of_Employer, 
+        e.Address_of_Employer, 
+        e.Number_of_Years_in_Present_Employer, 
+        e.Type_of_Employer, 
+        e.Major_Line_of_Business,
+        CONCAT('AL', LPAD(a.Alumni_ID_Number, 5, '0')) AS Alumni_ID_Number_Format
+    FROM `2024-2025` a
+    LEFT JOIN `2024-2025_ed` e 
+        ON a.`Alumni_ID_Number` = e.`Alumni_ID_Number`
+    WHERE e.`Alumni_ID_Number` IS NULL OR e.`ID` = (SELECT MAX(`ID`) FROM `2024-2025_ed` WHERE `Alumni_ID_Number` = a.`Alumni_ID_Number`)
     ");
-
-    $statement->execute();
-
-    $colleges = $con->query("SELECT DISTINCT College FROM `2024-2025`")->fetchAll(PDO::FETCH_COLUMN);
-    $departments = $con->query("SELECT DISTINCT Department FROM `2024-2025`")->fetchAll(PDO::FETCH_COLUMN);
-    $sections = $con->query("SELECT DISTINCT Section FROM `2024-2025`")->fetchAll(PDO::FETCH_COLUMN);
-
-    if (isset($_GET['success']) && $_GET['success'] == 1) {
-        echo '<div class="alert alert-success">Alumni information added successfully!</div>';
-    }
 } catch (PDOException $e) {
     die("Query failed: " . $e->getMessage());
-}
-
-if (isset($_GET['deleted']) && $_GET['deleted'] == 1) {
-    echo '<div class="alert alert-success">Alumni record deleted successfully!</div>';
 }
 ?>
 
@@ -70,55 +41,23 @@ if (isset($_GET['deleted']) && $_GET['deleted'] == 1) {
     <link rel="stylesheet" href="../assets/css/bootstrap.css">
     <link rel="stylesheet" href="../assets/css/style.css">
     <link rel="stylesheet" href="https://pro.fontawesome.com/releases/v5.10.0/css/all.css" crossorigin="anonymous" />
-    <style>
-        .btn-add {
-            margin-left: auto;
-        }
-
-        .btn {
-            white-space: nowrap;
-        }
-    </style>
 </head>
 
 <body class="bg-content">
     <main class="dashboard d-flex">
         <?php include "component/sidebar.php"; ?>
         <div class="container-fluid px">
-            <?php include "component/header.php"; ?>
             <div class="alumni-list-header d-flex justify-content-between align-items-center py-2">
                 <div class="title h6 fw-bold">Alumni List</div>
                 <div class="btn-add d-flex gap-3 align-items-center">
+                    <div class="short">
+                        <i class="far fa-sort"></i>
+                    </div>
                     <?php include 'alumni_add.php'; ?>
-                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#importModal">Import Alumni Data</button>
+                    <button class="btn btn-primary btn-wide" data-bs-toggle="modal" data-bs-target="#importModal">Import Alumni</button>
+                    <?php include 'importmodal.php'; ?>
                 </div>
             </div>
-
-            <div class="filter-container">
-                <select id="collegeFilter" class="form-select" onchange="filterTable()">
-                    <option value="">College</option>
-                    <?php foreach ($colleges as $college): ?>
-                        <option value="<?php echo htmlspecialchars($college); ?>"><?php echo htmlspecialchars($college); ?></option>
-                    <?php endforeach; ?>
-                </select>
-
-                <select id="departmentFilter" class="form-select" onchange="filterTable()">
-                    <option value="">Department</option>
-                    <?php foreach ($departments as $department): ?>
-                        <option value="<?php echo htmlspecialchars($department); ?>"><?php echo htmlspecialchars($department); ?></option>
-                    <?php endforeach; ?>
-                </select>
-
-                <select id="sectionFilter" class="form-select" onchange="filterTable()">
-                    <option value="">Section</option>
-                    <?php foreach ($sections as $section): ?>
-                        <option value="<?php echo htmlspecialchars($section); ?>"><?php echo htmlspecialchars($section); ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-
-            <?php include 'importmodal.php'; ?>
-
             <div class="table-responsive table-container">
                 <table class="table alumni_list table-borderless">
                     <thead>
@@ -178,38 +117,15 @@ if (isset($_GET['deleted']) && $_GET['deleted'] == 1) {
                             <?php endwhile; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="20" class="text-center">No alumni found.</td>
+                                <td colspan="20" class="text-center">No alumni records found.</td>
                             </tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
             </div>
-        </div>
     </main>
-
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.min.js"></script>
-    <script>
-        function filterTable() {
-            const collegeFilter = document.getElementById('collegeFilter').value.toLowerCase();
-            const departmentFilter = document.getElementById('departmentFilter').value.toLowerCase();
-            const sectionFilter = document.getElementById('sectionFilter').value.toLowerCase();
-            const table = document.querySelector('.alumni_list tbody');
-            const rows = table.querySelectorAll('tr');
-
-            rows.forEach(row => {
-                const college = row.cells[6].textContent.toLowerCase();
-                const department = row.cells[7].textContent.toLowerCase();
-                const section = row.cells[8].textContent.toLowerCase();
-
-                const collegeMatch = college.includes(collegeFilter);
-                const departmentMatch = department.includes(departmentFilter);
-                const sectionMatch = section.includes(sectionFilter);
-
-                row.style.display = (collegeMatch && departmentMatch && sectionMatch) ? '' : 'none';
-            });
-        }
-    </script>
+    <script src="../assets/js/script.js"></script>
+    <script src="../assets/js/bootstrap.bundle.js"></script>
 </body>
 
 </html>
